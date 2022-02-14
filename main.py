@@ -1,5 +1,6 @@
 import sys
 import numpy as np
+from model import model
 
 def softmax(mat):
     if mat.ndim > 1:
@@ -50,6 +51,7 @@ def init_weights(size):
 if __name__ == '__main__':
 
     x = np.asarray([1,0,1,0])
+
     w1_shape = (4,3)
     w2_shape = (3,2)
     w3_shape = (2,5)
@@ -68,6 +70,12 @@ if __name__ == '__main__':
     a2 = sigmoid(z2)
     z3 = np.dot(w3.T, a2)
     yhat = softmax(z3)
+
+    layer_dim = [4, 3, 2, 5]  # including input and output layer
+    layer_activation = ['relu', 'sigmoid', '', '']
+    loss = 'categorical_crossentropy'
+    model = model(layer_dim=layer_dim, layer_activation=layer_activation, loss=loss)
+    model.foward_pass(data_point=x)
 
     print()
 
