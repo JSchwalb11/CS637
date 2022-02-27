@@ -51,15 +51,19 @@ def init_weights(size):
 if __name__ == '__main__':
 
     x = np.asarray([1,0,1,0])
+    x = x.reshape(x.shape[0], 1)
 
+    """
     w1_shape = (4,3)
     w2_shape = (3,2)
     w3_shape = (2,5)
     b1_shape = (3,1)
     b2_shape = (2,1)
+
     w1 = init_weights(w1_shape)
     w2 = init_weights(w2_shape)
     w3 = init_weights(w3_shape)
+
     b1 = np.zeros(b1_shape)
     b2 = np.zeros(b2_shape)
 
@@ -70,13 +74,23 @@ if __name__ == '__main__':
     a2 = sigmoid(z2)
     z3 = np.dot(w3.T, a2)
     yhat = softmax(z3)
+    """
 
+    y_gth = np.asarray([[1,0,0,0,0], [0,1,0,0,0], [0,0,1,0,0], [0,0,0,1,0], [0,0,0,0,1]])
     layer_dim = [4, 3, 2, 5]  # including input and output layer
-    layer_activation = ['relu', 'sigmoid', '', '']
-    loss = 'categorical_crossentropy'
-    model = model(layer_dim=layer_dim, layer_activation=layer_activation, loss=loss)
-    model.foward_pass(data_point=x)
+    layer_activation = ['relu', 'sigmoid', 'softmax', '']
+    #loss = 'categorical_crossentropy'
+    loss = 'hinge'
+    loss_params = ['j=2']
+    model = model(layer_dim=layer_dim, layer_activation=layer_activation, loss_type=loss, loss_params=[])
+    model.foward_pass(data_point=x, y_true=y_gth[0])
+    model.backward_pass(model.y_pred, y_gth[0])
+    for y_true in y_gth:
+        loss = model.categorical_crossentropy(y_pred=model.y_pred, y_true=y_true)
+        print("Single Sample Loss")
+        print("y_true: {0}, y_pred: {1}, loss: {2}".format(y_true, model.y_pred, loss))
 
-    print()
+    print("Model Summary")
+    print(model.dump_model_summary())
 
 
