@@ -17,7 +17,9 @@ class model:
         self.loss = loss(loss_type=loss_type, loss_params=loss_params)
         self.weights = []  # init first weight to 1
         self.layers = []
-        self.trace = []
+        self.fp_trace = []
+        self.bp_trace = []
+        self.bp_trace_test = []
         self.loss_history = []
         self.loss_history_dloss_dyi = []
         self.dloss_dzx = []
@@ -139,76 +141,136 @@ class model:
             self.layers[i + 1] = (ax, self.layers[i + 1][1])
 
         for layer in self.layers:
-            self.trace.append(layer)
+            self.fp_trace.append(layer)
 
         self.y_pred = self.layers[len(self.layers)-1][0]
         self.loss_history.append(self.loss.loss_func(y_pred=self.y_pred, y_true=y_true))
 
-    def backward_pass(self, y_pred, y_true):
-        #1
-        dloss_dz3 = self.loss.dloss_dyi(y_pred=y_pred)
+    def backward_pass(self, y_pred):
+        self.step_backward(y_pred=y_pred)
 
-        #2
-        a = self.layers[len(self.layers) - 2][0]
-        b = dloss_dz3.T
-        dloss_dw3 = np.dot(a, b)
+        weights_copy = self.weights.copy()
 
-        #3
-        a = self.weights[len(self.weights) - 1]
-        b = dloss_dz3
-        dloss_da2 = np.dot(a, b)
+        num_steps = 2 * len(self.layers) - 1
 
-        #4 sigmoid
-        a = dloss_da2
-        b = self.layers[len(self.layers) - 2][0] * (1 - self.layers[len(self.layers) - 2][0])
-        #dloss_dz2 = np.dot(a, b)
-        dloss_dz2 = a*b
+        dloss_dzx = self.loss.dloss_dyi(y_pred=y_pred)
+        self.loss_history_dloss_dyi.append(dloss_dzx)
+        self.dloss_dzx.append(dloss_dzx)
+        self.bp_trace.append(('Step {0} <dloss_dzx>'.format(2 * len(self.layers) - 1), dloss_dzx))
+        self.layers.pop()
 
-        #5
-        a = self.layers[len(self.layers) - 3][0]
-        b = dloss_dz2.T
-        dloss_dw2 = np.dot(a, b)
+        for i in range(num_steps - 1, -1, -1):
+            if i % 3 == 0:
+                # dloss_dwx
+                layer = self.layers.pop()
+                a = layer[0]
+                b = self.dloss_dzx.pop()
+                dloss_dwx = np.dot(a, b.T)
+                self.dloss_dwx.append(dloss_dwx)
+                self.dloss_dzx.append(b) # put back for use in dloss_dax
+                self.bp_trace.append(('Step {0} <dloss_dwx>'.format(i), dloss_dwx))
+                self.layers.append(layer)
 
-        #6
-        a = self.weights[len(self.weights) - 2]
-        b = dloss_dz2
-        dloss_da1 = np.dot(a, b)
+            elif i % 3 == 1:
+                # dloss_dzx
+                current_layer = self.layers.pop()
+                next_layer = self.layers.pop()
 
-        #7 relu
-        a = dloss_da1
-        b = np.zeros_like(a)
-        for i in range(0, len(self.datapoint) - 1):
-            if self.datapoint[i] < 0:
-                b[i] = 0
-            else:
-                b[i] = 1
+                aggregate = current_layer[0]
+                activation_type = next_layer[1]
 
-        dloss_dz1 = a * b
+                a = self.dloss_dax.pop()
 
-        #8
-        a = self.datapoint
-        b = dloss_dz1.T
-        dloss_dw1 = np.dot(a, b)
+                if activation_type == 'sigmoid':
+                    b = self.sigmoid_derivative(aggregate) # sigmoid derivative, a function of the activated layer
+                elif activation_type == 'relu':
+                    b = self.relu_derivative(aggregate) # relu derivative, a function of the activation itself
 
+                else:
+                    b = 1 # derivative of identity function
+
+                dloss_dzx = a * b
+                self.dloss_dzx.append(dloss_dzx) # not matrix multiplication
+                self.bp_trace.append(('Step {0} <dloss_dzx>'.format(i), dloss_dzx))
+                self.layers.append(next_layer) # put the layer back for use in dloss_dwx
+                # self.layers.append(current_layer) # toss current layer since we're done with it
+
+            elif i % 3 == 2:
+                # dloss_dax
+                a = weights_copy.pop()
+                b = self.dloss_dzx.pop()
+                dloss_dax = np.dot(a, b)
+                self.dloss_dax.append(dloss_dax)
+                self.bp_trace.append(('Step {0} <dloss_dax>'.format(i), dloss_dax))
         print()
-
-        """
-        for i in range(len(self.layers) - 1, 0, -1):
-            if i == len(self.layers) - 1:
-                self.dloss_dzx.append(y_pred - y_true)
-                a = self.layers[i][0]
-                b = self.dloss_dzx[(len(self.layers) - 1) - i].T
-                self.dloss_dax = np.dot(a, b)
-                print()
-
-            else:
-                self.dloss_dzx.append()
-        print()"""
 
 
     def step_forward(self, previous_layer, weights):
         return np.dot(weights.T, previous_layer)
 
+    def step_backward(self, y_pred):
+
+        #7
+        dloss_dz3 = self.loss.dloss_dyi(y_pred=y_pred)
+        self.bp_trace_test.append(('Step {0} <dloss_dzx>'.format(str(7)), dloss_dz3))
+
+
+        # 6
+        a = self.layers[len(self.layers) - 2][0]
+        b = dloss_dz3.T
+        dloss_dw3 = np.dot(a, b)
+        self.bp_trace_test.append(('Step {0} <dloss_dwx>'.format(str(6)), dloss_dw3))
+
+        # 5
+        a = self.weights[len(self.weights) - 1]
+        b = dloss_dz3
+        dloss_da2 = np.dot(a, b)
+        self.bp_trace_test.append(('Step {0} <dloss_dax>'.format(str(5)), dloss_da2))
+
+        # 4 sigmoid
+        a = dloss_da2
+        aggregate = self.layers[len(self.layers) - 2][0]
+        b = aggregate * (1 - aggregate)
+        # dloss_dz2 = np.dot(a, b)
+        dloss_dz2 = a * b
+        self.bp_trace_test.append(('Step {0} <dloss_dzx>'.format(str(4)), dloss_dz2))
+
+        # 3
+        a = self.layers[len(self.layers) - 3][0]
+        b = dloss_dz2.T
+        dloss_dw2 = np.dot(a, b)
+        self.bp_trace_test.append(('Step {0} <dloss_dwx>'.format(str(3)), dloss_dw2))
+
+
+        # 2
+        a = self.weights[len(self.weights) - 2]
+        b = dloss_dz2
+        dloss_da1 = np.dot(a, b)
+        self.bp_trace_test.append(('Step {0} <dloss_dax>'.format(str(2)), dloss_da1))
+
+
+        # 1 relu
+        aggregate = self.layers[len(self.layers) - 3][0]
+
+        a = dloss_da1
+        b = np.maximum(0, aggregate)
+
+        dloss_dz1 = a * b
+        self.bp_trace_test.append(('Step {0} <dloss_dzx>'.format(str(1)), dloss_dz1))
+
+
+        # 0
+        a = self.datapoint
+        b = dloss_dz1.T
+        dloss_dw1 = np.dot(a, b)
+        self.bp_trace_test.append(('Step {0} <dloss_dwx>'.format(str(0)), dloss_dw1))
+
+
+    def relu_derivative(self, mat):
+        return np.maximum(mat, 0)
+
+    def sigmoid_derivative(self, mat):
+        return mat * (1 - mat)
 
     def dump_model_summary(self):
-        return self.trace
+        return self.fp_trace

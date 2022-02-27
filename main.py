@@ -84,7 +84,7 @@ if __name__ == '__main__':
     loss_params = ['j=2']
     model = model(layer_dim=layer_dim, layer_activation=layer_activation, loss_type=loss, loss_params=[])
     model.foward_pass(data_point=x, y_true=y_gth[0])
-    model.backward_pass(model.y_pred, y_gth[0])
+    model.backward_pass(model.y_pred)
     for y_true in y_gth:
         loss = model.categorical_crossentropy(y_pred=model.y_pred, y_true=y_true)
         print("Single Sample Loss")
