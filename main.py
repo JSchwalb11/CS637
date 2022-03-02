@@ -1,5 +1,7 @@
 import numpy as np
 from model import model
+from Layer import Layer
+from Network import Network
 from keras.datasets import mnist
 import time
 from matplotlib import pyplot as plt
@@ -16,6 +18,7 @@ def get_mnist_data(hot_encoded=True):
         y_test[np.arange(test_y.shape[0]), test_y] = 1
 
     return (train_X, y_train), (test_X, y_test)
+
 
 if __name__ == '__main__':
     if False:
@@ -41,26 +44,14 @@ if __name__ == '__main__':
     train_X = x
     train_y = y
 
-
-    #layer_dim = [4, 3, 2, 5]  # including input and output layer
-    #layer_dim = [in_shape, 3, 6, 8, 2, 6, k_class]  # including input and output layer
-    layer_dim = [in_shape, 3, 6, k_class]
-    layer_activation = ['relu', 'sigmoid', 'softmax', '']
-    #layer_activation = ['relu', 'sigmoid', 'relu', 'sigmoid', 'relu', 'softmax', '']
-    #weight_initialization = 'gaussian var=0.01'
-    weight_initialization = 'main_diag'
-    loss = 'categorical_crossentropy'
-    #loss = 'hinge'
-    loss_params = ['j=2']
-
-    model = model(layer_dim=layer_dim,
-                  layer_activation=layer_activation,
-                  loss_type=loss,
-                  loss_params=[],
-                  learning_rate=0.005,
-                  momentum=1,
-                  weight_initialization=weight_initialization,
-                  )
+    network = Network.compile_model(in_shape=in_shape,
+                                    k_class=k_class,
+                                    dims = [4,3,2,6,8],
+                                    activations=['relu', 'sigmoid', 'relu', 'sigmoid', 'softmax'],
+                                    loss_type='categorical_crossentropy',
+                                    momentum=1,
+                                    learning_rate=0.001,
+                                    weight_type='gaussian')
 
     EPOCHS = 100
     BATCH_SIZE = 64
