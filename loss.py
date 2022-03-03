@@ -33,16 +33,35 @@ class loss:
     def hinge(self, y_pred, y_true, j=2):
         assert len(y_pred) == len(y_true)
 
-        yt = y_pred[np.argmax(y_true)]
-        y_pred[np.argmax(y_true)] = 0
-        yp = y_pred[np.argmax(y_pred)]
+        ys = np.argmax(y_true)
+        tmp = np.zeros_like(y_pred)
 
-        return max(0, 1 + yt - yp)
+        for i, v in enumerate(y_pred):
+            a = 1 + v - y_pred[ys]
+            tmp[i] = max(a, 0)
+
+        tmp[ys] = 0
+
+        return np.sum(tmp)
 
     def dloss_dyi_hinge(self, y_pred, y_true):
-        grad_input = np.where(y_pred * y_true < 1, -y_true / y_pred.size, 0)
+        ys = np.argmax(y_true)
+        tmp = np.zeros_like(y_pred)
 
-        return grad_input
+        for i, v in enumerate(y_pred):
+            a = 1 + v - y_pred[ys]
+            if i != ys:
+                if a > 0:
+                    tmp[i] = 1
+                    tmp[ys] -= 1
+                else:
+                    tmp[i] = 0
+            else:
+                tmp[i] = -1
+
+        s = tmp / tmp.shape[0]
+
+        return s
 
     def euclidian_distance(self, y_pred, y_true):
         return np.sqrt((y_pred - y_true)**2)

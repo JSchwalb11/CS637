@@ -9,6 +9,7 @@ class Layer:
         self.out_shape = out_shape
         self.activation = activation
         self.init_weight_type = init_weight_type
+        self.loss_type = loss_type
 
         search = re.search(('gaussian'), self.init_weight_type)
         if search:
@@ -55,6 +56,8 @@ class Layer:
 
         if self.activation == 'softmax':
             self.dzx = self.activation_dict[self.activation]['derivative'](self.tail.output, y_true)
+        elif self.tail.loss_type == 'hinge':
+            self.dzx = self.tail.dloss_dyi(self.tail.output, y_true)
         else:
             a = self.dax
             b = self.activation_dict[self.activation]['derivative'](self.output)[np.newaxis].T

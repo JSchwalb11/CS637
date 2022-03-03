@@ -12,13 +12,6 @@ def get_mnist_data(hot_encoded=True):
         y_test = np.zeros((test_y.shape[0], test_y.max() + 1), dtype=np.float32)
         y_test[np.arange(test_y.shape[0]), test_y] = 1
 
-        sublist = 1000
-
-        train_X = train_X[:sublist]
-        y_train = y_train[:sublist]
-        test_X = test_X[:sublist]
-        y_test = y_test[:sublist]
-
     return (train_X, y_train), (test_X, y_test)
 
 class TestDNN:
@@ -232,36 +225,35 @@ class TestDNN:
             assert v == dloss_dyi[i]
 
     def test_loss_correct_hinge_prediction(self):
-        l = Layer(in_shape=3,
-                  out_shape=3,
+        l = Layer(in_shape=4,
+                  out_shape=4,
                   activation='none',
                   init_weight_type='diagonal',
                   loss_type='hinge')
 
-        inp = np.asarray([0.7, 0.1, 0.2])
+        inp = np.asarray([1, 1.7, -0.5, 2.7])
         y_pred = l.foward(inp)
-        y_true = [1, 0, 0]
+        y_true = [0, 1, 0, 0]
 
         loss = l.loss(y_pred=y_pred, y_true=y_true)
-        #print(loss)
+        print(loss)
 
-        assert loss == 1.5
+        assert loss == 2.3
 
     def test_loss_hinge_derivative(self):
-        l = Layer(in_shape=3,
-                  out_shape=3,
+        l = Layer(in_shape=4,
+                  out_shape=4,
                   activation='none',
                   init_weight_type='diagonal',
                   loss_type='hinge')
 
-        inp = np.asarray([0.6, 0.3, 0.1])
-
+        inp = np.asarray([1, 1.7, -0.5, 2.7])
         y_pred = l.foward(inp)
-        y_true = np.asarray([1, 0, 0])
+        y_true = [0, 1, 0, 0]
 
         loss_delta = l.dloss_dyi(y_pred=y_pred, y_true=y_true)
 
-        for i, v in enumerate([-0.3333333333333333,  0., 0.]):
+        for i, v in enumerate([ 0.25, -0.5,   0.,    0.25]):
             assert v == loss_delta[i]
 
     def test_Network_init(self):
@@ -753,10 +745,14 @@ class TestDNN:
     def test_mnist_fit_batch_backpropogation_hinge(self):
         import time
         from matplotlib import pyplot as plt
+        from sklearn.model_selection import train_test_split
 
-        (train_X, train_y), (test_X, test_y) = get_mnist_data()
-
+        (train_X, train_y), (val_X, val_y) = get_mnist_data()
         train_X = train_X.reshape((train_X.shape[0], train_X.shape[1] * train_X.shape[2]))
+        val_X = val_X.reshape((val_X.shape[0], val_X.shape[1] * val_X.shape[2]))
+
+        train_X, test_X, train_y, test_y = train_test_split(train_X, train_y, test_size=0.2, random_state=42,
+                                                            shuffle=True)
 
         in_shape = train_X.shape[1]
         k_class = train_y.shape[1]
@@ -775,11 +771,11 @@ class TestDNN:
                               activations=activations,
                               loss_type=loss_type,
                               momentum=1,
-                              learning_rate=0.01,
+                              learning_rate=0.001,
                               weight_type=weight_type)
 
-        EPOCHS = 50
-        BATCH_SIZE = 32
+        EPOCHS = 20
+        BATCH_SIZE = 8
 
         X_chunks = [train_X[x:x + BATCH_SIZE] for x in range(0, len(train_X), BATCH_SIZE)]
         y_chunks = [train_y[x:x + BATCH_SIZE] for x in range(0, len(train_y), BATCH_SIZE)]
@@ -808,6 +804,9 @@ class TestDNN:
             if len(lifetime_sum_losses) > 1:
                 loss_delta = np.average(lifetime_sum_losses[-3:]) - lifetime_sum_losses[-1]
                 print("Loss Delta {0}\n".format(loss_delta))
+
+                if loss_delta < 0:
+                    loss_delta = -loss_delta
 
                 if loss_delta < 1e-4:
                     print("Loss converged in {0} Epochs".format(j))
