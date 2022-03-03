@@ -58,6 +58,16 @@ class Network():
         self.backward_pass(y_true)
         self.loss = self.get_loss(self.y_pred, y_true)
 
+    def fit_batch(self, batch_x, batch_y):
+        batch_losses = []
+        for i, inp in enumerate(batch_x):
+            self.foward_pass(inp_ptr=inp)
+            self.y_pred = self.predict(inp)  # self.layers[-1].output
+            batch_losses.append(self.get_loss(self.y_pred, batch_y[i]))
+
+        self.loss = np.average(batch_losses)
+        self.backward_pass(batch_y[0])
+
     def predict(self, inp, hot_encoded=False):
         y_pred = self.foward_pass(inp)
 
