@@ -4,6 +4,8 @@ from Layer import Layer
 class Network():
     def __init__(self, layers, *args, **kwargs):
         self.layers = layers
+        self.y_pred = None
+        self.loss = None
 
         self.input_ptr = None
         self.fp_trace = []
@@ -40,7 +42,7 @@ class Network():
 
         i = 0
         while current_layer.head is not None:
-            if str(type(current_layer.head)) is not "<class \'Layer.Layer\'":
+            if str(type(current_layer.head)) != "<class \'Layer.Layer\'>":
                 break
 
             current_layer.backward(y_true)
@@ -49,6 +51,12 @@ class Network():
             i += 1
 
             self.bp_trace.append(("Step {0}".format(i), o))
+
+    def fit(self, inp, y_true):
+        self.foward_pass(inp_ptr=inp)
+        self.y_pred = self.predict(inp)  # self.layers[-1].output
+        self.backward_pass(y_true)
+        self.loss = self.get_loss(self.y_pred, y_true)
 
     def predict(self, inp, hot_encoded=False):
         y_pred = self.foward_pass(inp)
@@ -68,7 +76,6 @@ class Network():
         a = self.layers[-1].loss(y_pred=y_pred, y_true=y_true)
         return a
 
-
     def compile_model(self, *args, **kwargs):
         self.in_shape = kwargs.get('in_shape')
         self.k_class = kwargs.get('k_class')
@@ -79,39 +86,35 @@ class Network():
         self.learning_rate = kwargs.get('learning_rate')
         self.weight_type = kwargs.get('weight_type')
 
-        l0 = Layer(in_shape=self.in_shape,
-                   out_shape=self.in_shape,
-                   activation='none',
-                   init_weight_type='identity')
-
-        ln = Layer(in_shape=self.k_class,
-                   out_shape=self.k_class,
-                   activation='none',
-                   init_weight_type='identity',
-                   loss_type=self.loss_type,
-                   trainable=False)
-
         assert len(self.dims) == len(self.activations)
 
-        for i in range(0, len(self.dims)):
-            if i == 0:
-                lx = Layer(in_shape=self.in_shape,
-                           out_shape=self.dims[i],
-                           activation=self.activations[i],
-                           loss_type=self.loss_type,
-                           momentum=self.momentum,
-                           learning_rate=self.learning_rate,
-                           init_weight_type=self.weight_type)
-            else:
-                lx = Layer(in_shape=self.dims[i - 1],
-                           out_shape=self.dims[i],
-                           activation=self.activations[i],
-                           loss_type=self.loss_type,
-                           momentum=self.momentum,
-                           learning_rate=self.learning_rate,
-                           init_weight_type=self.weight_type)
+        first_layer = Layer(in_shape=self.dims[0],
+                       out_shape=self.dims[0],
+                       activation='none',
+                       momentum=self.momentum,
+                       learning_rate=self.learning_rate,
+                       init_weight_type='identity')
+        self.layers.append(first_layer)
 
+        for i in range(1, len(self.dims)):
+            lx = Layer(in_shape=self.dims[i - 1],
+                       out_shape=self.dims[i],
+                       activation=self.activations[i],
+                       momentum=self.momentum,
+                       learning_rate=self.learning_rate,
+                       init_weight_type=self.weight_type)
             self.layers.append(lx)
+
+        final_layer = Layer(in_shape=self.dims[-1],
+                            out_shape=self.dims[-1],
+                            activation='none',
+                            loss_type=self.loss_type,
+                            momentum=self.momentum,
+                            learning_rate=self.learning_rate,
+                            init_weight_type=self.weight_type)
+
+        self.layers.append(final_layer)
+
         network = Network(self.layers)
         network.compile()
 

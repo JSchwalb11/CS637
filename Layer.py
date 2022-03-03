@@ -1,5 +1,5 @@
 import numpy as np
-
+import re
 from loss import loss
 
 
@@ -8,6 +8,18 @@ class Layer:
         self.in_shape = in_shape
         self.out_shape = out_shape
         self.activation = activation
+        self.init_weight_type = init_weight_type
+
+        search = re.search(('gaussian'), self.init_weight_type)
+        if search:
+            search1 = re.search('var=', init_weight_type)
+            if search1:
+                self.var = int(self.init_weight_type[search1.end():])
+            else:
+                self.var = 1
+            self.init_weight_type = 'gaussian'
+
+
         self.init_activations()
         self.bias = np.zeros(out_shape)
         self.momentum = momentum
@@ -23,7 +35,7 @@ class Layer:
             self.weight_dict['identity']()
         else:
             self.init_weights()
-            self.weight_dict[init_weight_type]()
+            self.weight_dict[self.init_weight_type]()
 
         self.output = np.zeros(out_shape)
         self.dzx = np.zeros(out_shape)
@@ -33,6 +45,8 @@ class Layer:
     def foward(self, inputs):
         z = np.dot(self.weights.T, inputs) + self.bias
         self.output = self.activation_dict[self.activation]['func'](z)
+        """if np.sum(self.output) == 0:
+            breakpoint()"""
         return self.output
 
     def backward(self, y_true):
@@ -61,7 +75,10 @@ class Layer:
                 b = self.dzx
                 self.dwx = np.dot(a, b)
 
-            self.weights = self.weights - self.momentum * self.learning_rate * self.dwx
+            delta = self.momentum * self.learning_rate * self.dwx
+            """if np.sum(delta) == 0:
+                breakpoint()"""
+            self.weights = self.weights - delta
 
         self.head.dax = np.dot(self.weights, self.dzx)
 
@@ -98,11 +115,11 @@ class Layer:
         return mat
 
     def weight_init_random(self):
-        weights = np.random.rand((self.in_shape, self.out_shape))
+        weights = np.random.rand(self.in_shape, self.out_shape)
         self.weights = weights
 
     def weight_init_gaussian(self):
-        weights = np.random.normal(0, 0.1, size=(self.in_shape, self.out_shape))
+        weights = np.random.normal(0, self.var, size=(self.in_shape, self.out_shape))
         self.weights = weights
 
     def main_diag_init(self):

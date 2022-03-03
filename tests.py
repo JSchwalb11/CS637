@@ -1,6 +1,25 @@
 import numpy as np
 from Layer import Layer
 from Network import Network
+import copy
+
+def get_mnist_data(hot_encoded=True):
+    from keras.datasets import mnist
+    (train_X, train_y), (test_X, test_y) = mnist.load_data()
+    if hot_encoded == True:
+        y_train = np.zeros((train_y.shape[0], train_y.max() + 1), dtype=np.float32)
+        y_train[np.arange(train_y.shape[0]), train_y] = 1
+        y_test = np.zeros((test_y.shape[0], test_y.max() + 1), dtype=np.float32)
+        y_test[np.arange(test_y.shape[0]), test_y] = 1
+
+        sublist = 1000
+
+        train_X = train_X[:sublist]
+        y_train = y_train[:sublist]
+        test_X = test_X[:sublist]
+        y_test = y_test[:sublist]
+
+    return (train_X, y_train), (test_X, y_test)
 
 class TestDNN:
     def setup_method(self, test_method):
@@ -68,6 +87,11 @@ class TestDNN:
                          init_weight_type='identity',
                          loss_type='hinge',
                          trainable=False)
+
+    """def test_gaussian_init(self):
+        variance = 1.1
+        l = Layer(in_shape=2, out_shape=3, activation='sigmoid', init_weight_type='gaussian var=1.1')
+        assert variance == l.var"""
 
     def test_sigmoid(self):
         l = Layer(in_shape=2, out_shape=3, activation='sigmoid', init_weight_type='diagonal')
@@ -230,7 +254,7 @@ class TestDNN:
                   init_weight_type='diagonal',
                   loss_type='hinge')
 
-        inp = np.asarray([0.7, 0.1, 0.2])
+        inp = np.asarray([0.6, 0.3, 0.1])
 
         y_pred = l.foward(inp)
         y_true = np.asarray([1, 0, 0])
@@ -405,43 +429,46 @@ class TestDNN:
             assert (dw2 == dw21).all() == True
 
 
+
     def test_Network_backward_pass_extended(self):
-        inp = np.asarray([1, 0, 1, 0])
-        network = Network([self.l001, self.l01, self.l11, self.l21, self.l31, self.l41, self.l51])
-        network.compile()
-    
-        oN = network.predict(inp)
-        y_true = np.asarray([1, 0, 0, 0, 0])
-    
-        loss_delta = network.dloss_dyi(y_pred=oN, y_true=y_true)
+        # inp = np.asarray([1, 0, 1, 0])
+        x = np.asarray([[1, 0, 1, 0], [1, 0, 1, 1]])
+        y = np.asarray([[1, 0, 0, 0, 0], [0, 0, 0, 0, 1]])
 
-        self.l41.backward(y_true)
-        self.l31.backward(y_true)
-        self.l21.backward(y_true)
-        self.l11.backward(y_true)
-        self.l01.backward(y_true)
+        network0 = Network([self.l001, self.l01, self.l11, self.l21, self.l31, self.l41, self.l51])
+        network1 = copy.deepcopy(network0)
+        network0.compile()
 
-        dw0 = self.l01.dwx
-        dw1 = self.l11.dwx
-        dw2 = self.l21.dwx
-        dw3 = self.l31.dwx
-        dw4 = self.l41.dwx
+        for i, inp in enumerate(x):
+            network0.fit(inp, y[i])
 
-        oN1 = network.predict(inp)
-        y_true = np.asarray([1, 0, 0, 0, 0])
+            y_true = y[i]
+            self.l41.backward(y_true)
+            self.l31.backward(y_true)
+            self.l21.backward(y_true)
+            self.l11.backward(y_true)
+            self.l01.backward(y_true)
 
-        network.backward_pass(y_true=y_true)
-        dw01 = self.l01.dwx
-        dw11 = self.l11.dwx
-        dw21 = self.l21.dwx
-        dw31 = self.l31.dwx
-        dw41 = self.l41.dwx
+            dw0 = self.l01.dwx
+            dw1 = self.l11.dwx
+            dw2 = self.l21.dwx
+            dw3 = self.l31.dwx
+            dw4 = self.l41.dwx
 
-        assert (dw0 == dw01).all() == True
-        assert (dw1 == dw11).all() == True
-        assert (dw2 == dw21).all() == True
-        assert (dw3 == dw31).all() == True
-        assert (dw4 == dw41).all() == True
+            oN1 = network1.predict(inp)
+            network1.backward_pass(y_true=y_true)
+
+            dw01 = self.l01.dwx
+            dw11 = self.l11.dwx
+            dw21 = self.l21.dwx
+            dw31 = self.l31.dwx
+            dw41 = self.l41.dwx
+
+            assert (dw0 == dw01).all() == True
+            assert (dw1 == dw11).all() == True
+            assert (dw2 == dw21).all() == True
+            assert (dw3 == dw31).all() == True
+            assert (dw4 == dw41).all() == True
 
     def test_network_compile_model(self):
         x = np.asarray([[1, 0, 1, 0], [1, 0, 1, 1]])
@@ -453,6 +480,7 @@ class TestDNN:
         k_class = y.shape[1]
 
         dims = [4, 3, 2, 6, 8]
+        dims_extended = [4, 4, 3, 2, 6, 8, 8]
         activations = ['relu', 'sigmoid', 'relu', 'sigmoid', 'softmax']
         loss_type = 'categorical_crossentropy'
         weight_type = 'gaussian'
@@ -468,12 +496,190 @@ class TestDNN:
                                 learning_rate = 0.001,
                                 weight_type = weight_type)
 
-        for i, layer in enumerate(network.layers):
-            if i == 0:
-                assert (layer.in_shape, layer.out_shape) == (in_shape, dims[i])
+        assert network != None
 
-            else:
-                assert (layer.in_shape, layer.out_shape) == (dims[i-1], dims[i])
+
+    def test_network_fit(self):
+        x = np.asarray([[1, 0, 1, 0], [1, 0, 1, 1]])
+        y = np.asarray([[1, 0, 0, 0, 0], [0, 0, 0, 0, 1]])
+
+        x = x.reshape(x.shape[0], x.shape[1])
+
+        in_shape = x.shape[1]
+        k_class = y.shape[1]
+
+        dims = [4, 3, 2, 6, 5]
+        activations = ['relu', 'sigmoid', 'relu', 'sigmoid', 'softmax']
+        loss_type = 'categorical_crossentropy'
+        weight_type = 'diagonal'
+
+        network = Network(layers=[])
+
+        network.compile_model(in_shape=in_shape,
+                              k_class=k_class,
+                              dims=dims,
+                              activations=activations,
+                              loss_type=loss_type,
+                              momentum=1,
+                              learning_rate=0.001,
+                              weight_type=weight_type)
+
+        epoch_loss = []
+
+        for i in range(0, len(x)):
+            network.fit(inp=x[i], y_true=y[i])
+            loss = np.sum(network.get_loss(network.y_pred, y[i]))
+            epoch_loss.append(loss)
+
+        #print(epoch_loss)
+
+        for i, v in enumerate([0.2993450529218126, 0.33443350891870804]):
+            assert v == epoch_loss[i]
+
+
+    def test_mnist_backpropogation_crossentropy_softmax(self):
+        import time
+        from matplotlib import pyplot as plt
+
+        (train_X, train_y), (test_X, test_y) = get_mnist_data()
+
+        train_X = train_X.reshape((train_X.shape[0], train_X.shape[1] * train_X.shape[2]))
+
+        in_shape = train_X.shape[1]
+        k_class = train_y.shape[1]
+
+        dims = [in_shape, 3, 2, 6, k_class]
+        activations = ['relu', 'sigmoid', 'relu', 'sigmoid', 'softmax']
+        loss_type = 'categorical_crossentropy'
+        # loss_type = 'hinge'
+        weight_type = 'diagonal'
+
+        network = Network(layers=[])
+
+        network.compile_model(in_shape=in_shape,
+                              k_class=k_class,
+                              dims=dims,
+                              activations=activations,
+                              loss_type=loss_type,
+                              momentum=1,
+                              learning_rate=0.01,
+                              weight_type=weight_type)
+
+        EPOCHS = 50
+        BATCH_SIZE = 32
+
+        X_chunks = [train_X[x:x + BATCH_SIZE] for x in range(0, len(train_X), BATCH_SIZE)]
+        y_chunks = [train_y[x:x + BATCH_SIZE] for x in range(0, len(train_y), BATCH_SIZE)]
+
+        lifetime_sum_losses = []
+
+        for j in range(0, EPOCHS):
+            print("Begin Epoch {0}".format(j))
+            now = time.time()
+
+            losses = []
+            for (X_chunk, y_chunk) in zip(X_chunks, y_chunks):
+
+                for (pt, label) in zip(X_chunk, y_chunk):
+                    network.fit(inp=pt, y_true=label)
+                    y_pred = network.y_pred
+                    loss = network.get_loss(y_pred, label)
+                    v = losses[-3:] + [loss]
+                    losses.append(np.mean(v))
+
+                """plt.figure()
+                t = np.arange(0, len(losses))
+                plt.plot(t, losses)
+                plt.title("Batch Loss")
+                plt.show()"""
+            elapsed_time = time.time() - now
+            print("Time taken to complete epoch: {0}".format(elapsed_time))
+
+            lifetime_sum_losses.append(np.sum(losses))
+            if len(lifetime_sum_losses) > 1:
+                loss_delta = lifetime_sum_losses[-2] - lifetime_sum_losses[-1]
+                print("Loss Delta {0}\n".format(loss_delta))
+
+                if np.isclose(loss_delta, 0):
+                    print("Loss converged in {0} Epochs".format(j))
+                    print("Loss = {0}".format(lifetime_sum_losses[-1]))
+                    break
+
+
+        plt.figure()
+        t = np.arange(0, len(lifetime_sum_losses))
+        plt.plot(t, lifetime_sum_losses)
+        plt.title("Epoch Loss")
+        plt.show()
+
+    def test_mnist_backpropogation_hinge(self):
+        import time
+        from matplotlib import pyplot as plt
+
+        (train_X, train_y), (test_X, test_y) = get_mnist_data()
+
+        train_X = train_X.reshape((train_X.shape[0], train_X.shape[1] * train_X.shape[2]))
+
+        in_shape = train_X.shape[1]
+        k_class = train_y.shape[1]
+
+        dims = [in_shape, 3, 2, 6, k_class]
+        activations = ['relu', 'sigmoid', 'relu', 'sigmoid', 'none']
+        #loss_type = 'categorical_crossentropy'
+        loss_type = 'hinge'
+        weight_type = 'diagonal'
+
+        network = Network(layers=[])
+
+        network.compile_model(in_shape=in_shape,
+                              k_class=k_class,
+                              dims=dims,
+                              activations=activations,
+                              loss_type=loss_type,
+                              momentum=1,
+                              learning_rate=0.01,
+                              weight_type=weight_type)
+
+        EPOCHS = 50
+        BATCH_SIZE = 32
+
+        X_chunks = [train_X[x:x + BATCH_SIZE] for x in range(0, len(train_X), BATCH_SIZE)]
+        y_chunks = [train_y[x:x + BATCH_SIZE] for x in range(0, len(train_y), BATCH_SIZE)]
+
+        lifetime_sum_losses = []
+
+        for j in range(0, EPOCHS):
+            print("Begin Epoch {0}".format(j))
+            now = time.time()
+
+            losses = []
+            for (X_chunk, y_chunk) in zip(X_chunks, y_chunks):
+
+                for (pt, label) in zip(X_chunk, y_chunk):
+                    network.fit(inp=pt, y_true=label)
+                    y_pred = network.y_pred
+                    loss = network.get_loss(y_pred, label)
+                    losses.append(loss)
+
+                """plt.figure()
+                t = np.arange(0, len(losses))
+                plt.plot(t, losses)
+                plt.title("Batch Loss")
+                plt.show()"""
+            elapsed_time = time.time() - now
+            print("Time taken to complete epoch: {0}".format(elapsed_time))
+
+            lifetime_sum_losses.append(np.sum(losses))
+            if len(lifetime_sum_losses) > 1:
+                loss_delta = lifetime_sum_losses[-2] - lifetime_sum_losses[-1]
+                print("Loss Delta {0}\n".format(loss_delta))
+
+                #if np.isclose(loss_delta, 0):
+                if loss_delta == 0:
+                    print("Loss converged in {0} Epochs".format(j))
+                    print("Loss = {0}".format(lifetime_sum_losses[-1]))
+                    break
+
 
 if __name__ == '__main__':
     TestDNN.setup_method(None)
