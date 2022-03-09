@@ -16,10 +16,12 @@ class loss:
     def categorical_crossentropy(self, y_pred, y_true):
         assert len(y_pred) == len(y_true)
         losses = np.zeros_like(y_pred)
-        #y_pred = self.check_hot_encoding(y_pred)
 
         for i in range(0, len(y_pred)):
-            losses[i] = (y_true[i]) * np.log(y_pred[i] + 1e-6)
+            try:
+                losses[i] = (y_true[i]) * np.log(y_pred[i])
+            except:
+                losses[i] = (y_true[i]) * np.log(y_pred[i]._value)
 
         sum_losses = - np.sum(losses)
         avg_losses = (1/len(y_pred)) * sum_losses
@@ -27,10 +29,12 @@ class loss:
         return avg_losses
 
     def dloss_dyi_categorical_crossentropy(self, y_pred, y_true):
-        #return -np.log(y_pred)
+        # this function is only called from a softmax layer,
+        # so a vectorized derivative of both CCE and softmax is returned
+
         return y_pred - y_true
 
-    def hinge(self, y_pred, y_true, j=2):
+    def hinge(self, y_pred, y_true):
         assert len(y_pred) == len(y_true)
 
         ys = np.argmax(y_true)
@@ -57,9 +61,9 @@ class loss:
                 else:
                     tmp[i] = 0
             else:
-                tmp[i] = -1
+                pass
 
-        s = tmp / tmp.shape[0]
+        s = tmp
 
         return s
 

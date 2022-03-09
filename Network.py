@@ -15,8 +15,9 @@ class Network():
         for i, layer in enumerate(self.layers):
             if i == 0:
                 layer.tail = self.layers[i + 1]
-                self.input_ptr = np.zeros(layer.in_shape)
-                layer.head = self.input_ptr
+                #self.input_ptr = np.zeros(layer.in_shape)
+                #layer.head = self.input_ptr
+                layer.head = None
             elif i + 1 == len(self.layers):
                 layer.tail = None
                 layer.head = self.layers[i - 1]
@@ -26,6 +27,7 @@ class Network():
 
     def foward_pass(self, inp_ptr):
         current_layer = self.layers[0]
+        #current_layer.output=
         current_layer.foward(inp_ptr)
 
         i = 0
@@ -41,9 +43,9 @@ class Network():
         current_layer = self.layers[-1]
 
         i = 0
-        while current_layer.head is not None:
-            if str(type(current_layer.head)) != "<class \'Layer.Layer\'>":
-                break
+        while True:
+            """if str(type(current_layer.head)) != "<class \'Layer.Layer\'>":
+                break"""
 
             current_layer.backward(y_true)
             o = current_layer.dzx
@@ -51,6 +53,9 @@ class Network():
             i += 1
 
             self.bp_trace.append(("Step {0}".format(i), o))
+            if current_layer is None:
+                break
+        #print("i=",i)
 
     def fit(self, inp, y_true):
         self.foward_pass(inp_ptr=inp)
@@ -63,8 +68,9 @@ class Network():
         batch_losses = []
 
         for i, inp in enumerate(batch_x):
+            inp = inp.T
             predictions.append(self.foward_pass(inp))
-            self.y_pred = self.predict(inp)  # self.layers[-1].output
+            self.y_pred = self.predict(inp)
             batch_losses.append(self.get_loss(self.y_pred, batch_y[i]))
 
         self.loss = np.average(batch_losses)
@@ -73,16 +79,16 @@ class Network():
         return predictions
 
     def predict(self, inp, hot_encoded=False):
-        y_pred = self.foward_pass(inp)
-        return y_pred
+        self.y_pred = self.foward_pass(inp)
+        return self.y_pred
 
     def predict_batch(self, batch_x, batch_y):
         predictions = []
         batch_losses = []
 
         for i, inp in enumerate(batch_x):
-            predictions.append(self.foward_pass(inp))
-            self.y_pred = self.predict(inp)  # self.layers[-1].output
+            self.y_pred = self.predict(inp)
+            predictions.append(self.y_pred)  # self.layers[-1].output
             batch_losses.append(self.get_loss(self.y_pred, batch_y[i]))
 
         return predictions
@@ -112,7 +118,8 @@ class Network():
                        activation='none',
                        momentum=self.momentum,
                        learning_rate=self.learning_rate,
-                       init_weight_type='identity')
+                       init_weight_type='identity',
+                       trainable=False)
         self.layers.append(first_layer)
 
         for i in range(1, len(self.dims)):
@@ -130,7 +137,8 @@ class Network():
                             loss_type=self.loss_type,
                             momentum=self.momentum,
                             learning_rate=self.learning_rate,
-                            init_weight_type=self.weight_type)
+                            init_weight_type=self.weight_type,
+                            trainable=False)
 
         self.layers.append(final_layer)
 

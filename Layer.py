@@ -5,8 +5,10 @@ from loss import loss
 
 class Layer:
     def __init__(self, in_shape, out_shape, activation, init_weight_type, momentum=1, learning_rate=0.001, trainable=True, loss_type=None):
-        self.in_shape = in_shape
-        self.out_shape = out_shape
+        #self.in_shape = in_shape
+        #self.out_shape = out_shape
+        self.in_shape = out_shape
+        self.out_shape = in_shape
         self.activation = activation
         self.init_weight_type = init_weight_type
         self.loss_type = loss_type
@@ -19,7 +21,6 @@ class Layer:
             else:
                 self.var = 1
             self.init_weight_type = 'gaussian'
-
 
         self.init_activations()
         self.bias = np.zeros(out_shape)
@@ -44,10 +45,9 @@ class Layer:
         self.dax = np.zeros(out_shape)
 
     def foward(self, inputs):
-        z = np.dot(self.weights.T, inputs) + self.bias
+        z = np.dot(self.weights, inputs) + self.bias
         self.output = self.activation_dict[self.activation]['func'](z)
-        """if np.sum(self.output) == 0:
-            breakpoint()"""
+
         return self.output
 
     def backward(self, y_true):
@@ -56,37 +56,31 @@ class Layer:
 
         if self.activation == 'softmax':
             self.dzx = self.activation_dict[self.activation]['derivative'](self.tail.output, y_true)
+
         elif self.tail.loss_type == 'hinge':
             self.dzx = self.tail.dloss_dyi(self.tail.output, y_true)
         else:
-            a = self.dax
-            b = self.activation_dict[self.activation]['derivative'](self.output)[np.newaxis].T
-            if a.shape == b.shape:
-                self.dzx = np.multiply(a, b)
-            else:
-                b = self.activation_dict[self.activation]['derivative'](self.output).T
-                assert self.dzx.shape == self.dax.shape
-                self.dzx = np.multiply(a, b)
+            a = self.tail.dax
+            b = self.activation_dict[self.activation]['derivative'](self.output)
+            self.dzx = np.multiply(a, b)
+
+        self.dax = np.dot(self.weights.T, self.dzx)
+
 
         if self.trainable == True:
-            try:
-                a = self.head.output[np.newaxis].T
-                b = self.dzx[np.newaxis]
-                self.dwx = np.dot(a, b)
-            except ValueError:
-                a = self.head.output[np.newaxis].T
-                b = self.dzx
-                self.dwx = np.dot(a, b)
+            if self.activation == 'none' and self.in_shape == self.out_shape:
+                a = np.ones_like(self.dzx[np.newaxis])
+            else:
+                a = self.head.output[np.newaxis]
+
+            b = self.dzx[np.newaxis].T
+            self.dwx = np.dot(b, a)
 
             delta = self.momentum * self.learning_rate * self.dwx
-            """if np.sum(delta) == 0:
-                breakpoint()"""
             self.weights = self.weights - delta
 
-        self.head.dax = np.dot(self.weights, self.dzx)
-
     def sigmoid_derivative(self, mat):
-        return self.sigmoid(mat) * (1 - self.sigmoid(mat))
+        return mat * (1 - mat)
 
     def sigmoid(self, mat):
         a = 1 / (1 + np.exp(-mat))
